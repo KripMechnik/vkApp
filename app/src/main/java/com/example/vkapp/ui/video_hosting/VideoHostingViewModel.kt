@@ -1,5 +1,6 @@
 package com.example.vkapp.ui.video_hosting
 
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import androidx.annotation.OptIn
 import androidx.lifecycle.ViewModel
@@ -11,15 +12,18 @@ import androidx.media3.common.util.Log
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import com.example.vkapp.common.Resource
+import com.example.vkapp.data.remote.dto.toVideoEntity
 import com.example.vkapp.domain.entity.VideoEntity
 import com.example.vkapp.domain.usecases.GetListOfVideosUseCase
 import com.example.vkapp.ui.video_hosting.video.VideoData
 import dagger.hilt.android.lifecycle.HiltViewModel
 import hilt_aggregated_deps._com_example_vkapp_ui_video_hosting_VideoHostingViewModel_HiltModules_BindsModule
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -34,6 +38,8 @@ class VideoHostingViewModel @OptIn(UnstableApi::class)
 
     private val _currentVideoDataState = MutableStateFlow(VideoData("", "", ""))
     val currentVideoDataState = _currentVideoDataState.asStateFlow()
+
+    private val retriever = MediaMetadataRetriever()
 
     init {
         player.addListener(
@@ -74,6 +80,19 @@ class VideoHostingViewModel @OptIn(UnstableApi::class)
 
     }
 
+    private fun getVideosDuration(){
+        viewModelScope.launch(Dispatchers.Default) {
+            if (_listState.value is VideoListState.Success){
+                _listState.value.data!!.forEachIndexed {index, item ->
+                    retriever.setDataSource(item.stringUri)
+                    val list = _listState.value.data!!.toMutableList()
+                    list[index] = list[index].copy(duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull())
+                    _listState.value = VideoListState.Success(list)
+                }
+            }
+        }
+    }
+
     private fun getListOfVideos(){
         getListOfVideosUseCase().onEach { result ->
             when(result){
@@ -82,6 +101,7 @@ class VideoHostingViewModel @OptIn(UnstableApi::class)
                 is Resource.Success -> {
                     _listState.value = VideoListState.Success(data = result.data!!)
                     addMediaItems(_listState.value.data!!.map { it.mediaItem })
+                    getVideosDuration()
                 }
             }
         }.launchIn(viewModelScope)

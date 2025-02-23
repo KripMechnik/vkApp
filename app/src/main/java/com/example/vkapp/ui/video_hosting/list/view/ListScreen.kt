@@ -32,6 +32,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.util.UnstableApi
 import com.example.vkapp.ui.theme.AppTheme
 import com.example.vkapp.ui.video_hosting.VideoListState
 import com.example.vkapp.ui.video_hosting.list.ListScreenPresenter
@@ -40,6 +41,7 @@ import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ListScreen(
@@ -97,7 +99,8 @@ fun ListScreen(
                         VideoItem(
                             title = it.title,
                             subtitle = it.subtitle,
-                            imageUrl = it.thumb
+                            imageUrl = it.thumb,
+                            duration = it.duration
                         ){
                             presenter.playVideo(it.uri)
                             presenter.navigateToVideo()
