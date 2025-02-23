@@ -21,6 +21,7 @@ import hilt_aggregated_deps._com_example_vkapp_ui_video_hosting_VideoHostingView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
@@ -90,6 +91,7 @@ class VideoHostingViewModel @OptIn(UnstableApi::class)
                 _listState.value.data!!.forEachIndexed {index, item ->
                     if (item.duration == null) {
                         _listState.value.data?.let {
+                            ensureActive()
                             retriever.setDataSource(item.stringUri)
                             val list = it.toMutableList()
                             list[index] = list[index].copy(duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull())
@@ -118,9 +120,9 @@ class VideoHostingViewModel @OptIn(UnstableApi::class)
 
     fun updateListOfVideos() {
         releaseMediaItems()
-        _listState.value = VideoListState.Empty
         setDurationsJob?.cancel()
         setDurationsJob = null
+        _listState.value = VideoListState.Empty
         getListOfVideos()
     }
 
