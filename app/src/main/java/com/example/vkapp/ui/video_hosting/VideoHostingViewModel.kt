@@ -20,12 +20,15 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import hilt_aggregated_deps._com_example_vkapp_ui_video_hosting_VideoHostingViewModel_HiltModules_BindsModule
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -41,8 +44,6 @@ class VideoHostingViewModel @OptIn(UnstableApi::class)
 
     private val _currentVideoDataState = MutableStateFlow(VideoData("", "", ""))
     val currentVideoDataState = _currentVideoDataState.asStateFlow()
-
-    private val retriever = MediaMetadataRetriever()
 
     private var setDurationsJob: Job? = null
 
@@ -88,17 +89,16 @@ class VideoHostingViewModel @OptIn(UnstableApi::class)
     private fun getVideosDuration(){
         setDurationsJob = viewModelScope.launch(Dispatchers.Default) {
             if (_listState.value is VideoListState.Success){
-                _listState.value.data!!.forEachIndexed {index, item ->
-                    if (item.duration == null) {
-                        _listState.value.data?.let {
-                            ensureActive()
-                            retriever.setDataSource(item.stringUri)
-                            val list = it.toMutableList()
-                            list[index] = list[index].copy(duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull())
-                            _listState.value = VideoListState.Success(list)
-                        }
-
+                val resultList = listState.value.data!!.mapIndexed { index, item ->
+                    async {
+                        val retriever = MediaMetadataRetriever()
+                        retriever.setDataSource(item.stringUri)
+                        item.duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+                        item
                     }
+                }
+                _listState.update {
+                   VideoListState.Success(resultList.awaitAll())
                 }
             }
         }
