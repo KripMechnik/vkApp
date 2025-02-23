@@ -19,6 +19,8 @@ import com.example.vkapp.ui.video_hosting.video.VideoData
 import dagger.hilt.android.lifecycle.HiltViewModel
 import hilt_aggregated_deps._com_example_vkapp_ui_video_hosting_VideoHostingViewModel_HiltModules_BindsModule
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
@@ -40,6 +42,8 @@ class VideoHostingViewModel @OptIn(UnstableApi::class)
     val currentVideoDataState = _currentVideoDataState.asStateFlow()
 
     private val retriever = MediaMetadataRetriever()
+
+    private var setDurationsJob: Job? = null
 
     init {
         player.addListener(
@@ -81,13 +85,18 @@ class VideoHostingViewModel @OptIn(UnstableApi::class)
     }
 
     private fun getVideosDuration(){
-        viewModelScope.launch(Dispatchers.Default) {
+        setDurationsJob = viewModelScope.launch(Dispatchers.Default) {
             if (_listState.value is VideoListState.Success){
                 _listState.value.data!!.forEachIndexed {index, item ->
-                    retriever.setDataSource(item.stringUri)
-                    val list = _listState.value.data!!.toMutableList()
-                    list[index] = list[index].copy(duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull())
-                    _listState.value = VideoListState.Success(list)
+                    if (item.duration == null) {
+                        _listState.value.data?.let {
+                            retriever.setDataSource(item.stringUri)
+                            val list = it.toMutableList()
+                            list[index] = list[index].copy(duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull())
+                            _listState.value = VideoListState.Success(list)
+                        }
+
+                    }
                 }
             }
         }
@@ -109,6 +118,9 @@ class VideoHostingViewModel @OptIn(UnstableApi::class)
 
     fun updateListOfVideos() {
         releaseMediaItems()
+        _listState.value = VideoListState.Empty
+        setDurationsJob?.cancel()
+        setDurationsJob = null
         getListOfVideos()
     }
 
